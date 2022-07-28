@@ -1,0 +1,77 @@
+version: '3'
+
+services:
+  nginx:
+    image: nginx
+    restart: always
+    volumes:
+      - ${PWD}/docker/nginx/sites:/etc/nginx/conf.d
+      - ${PWD}/symfony:/var/www/app
+    links:
+      - php:php
+      - mysql:mysql
+      - redis:redis
+      - rabbitmq:rabbitmq
+    ports:
+      - "127.0.0.1:8080:80"
+
+  php:
+    build: docker/php
+    restart: always
+    volumes:
+      - ${PWD}/symfony:/var/www/app
+      - ${PWD}/docker/php/php.ini:/usr/local/etc/php/php.ini
+    links:
+      - mysql:mysql
+      - redis:redis
+      - rabbitmq:rabbitmq
+
+  consumer:
+    build: docker/supervisor
+    restart: always
+    command: ['/usr/bin/supervisord']
+    volumes:
+      - ${PWD}/symfony:/var/www/app
+      - ${PWD}/docker/php/php.ini:/usr/local/etc/php/php.ini
+      - ${PWD}/docker/supervisor/messenger-worker.conf:/etc/supervisor/conf.d/messenger-worker.conf
+    links:
+      - mysql:mysql
+      - redis:redis
+      - rabbitmq:rabbitmq
+
+  mysql:
+    restart: always
+    image: mysql
+    command: ['mysqld', '--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci']
+    volumes:
+      - $PWD/docker/mysql:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+
+  redis:
+    image: redis
+    restart: always
+    volumes:
+      - ${PWD}/docker/redis/data:/data
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    restart: always
+    image: rabbitmq:3.8-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  pma:
+    restart: always
+    image: phpmyadmin/phpmyadmin
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    links:
+      - mysql:db
+    ports:
+      - "127.0.0.1:3000:80"
